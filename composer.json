@@ -1,0 +1,26 @@
+{
+    "name": "userator/tryagi",
+    "description": "asterisk gateway interface library",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "userator",
+            "email": "userator@ya.ru"
+        }
+    ],
+    "require": {
+        "php": "~7.3.0",
+        "psr/log": "~1.1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "TryAGI\\": "src/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "7.3"
+        }
+    }
+}
