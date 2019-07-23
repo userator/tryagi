@@ -2,6 +2,7 @@
 
 namespace TryAGI;
 
+use TryAGI\Client;
 use TryAGI\Exceptions\InvalidArgumentException;
 
 /**
@@ -9,25 +10,22 @@ use TryAGI\Exceptions\InvalidArgumentException;
  */
 class RichClient extends Client
 {
-    public function say_digits(int $digits, string $escape = '')
+    public function sayDigits(int $digits, string $escape = '')
     {
         return $this->send("SAY DIGITS $digits \"$escape\"");
     }
 
-    public function stream_file($file, $escape = null, $offset = null)
+    public function streamFile($file, $escape = null, $offset = null)
     {
-        $cmd = "STREAM FILE \"$file\" \"$escape\"";
-        if ($offset != null) $cmd .= " $offset";
-        return $this->send($cmd);
+        return $this->send("STREAM FILE \"$file\" \"$escape\"" . !is_null($offset) ? " $offset" : '');
     }
 
-    public function record_file($filename, $format, $escape, $timeout, $beep = false)
+    public function recordFile($filename, $format, $escape, $timeout, $beep = false)
     {
-        $beep = ($beep) ? ' BEEP ' : '';
-        return $this->send("RECORD FILE \"$filename\" \"$format\" \"$escape\" $timeout" . $beep);
+        return $this->send("RECORD FILE \"$filename\" \"$format\" \"$escape\" $timeout" . ($beep) ? ' BEEP ' : '');
     }
 
-    public function wait_for_digit(int $timeout = 500)
+    public function waitForDigit(int $timeout = 500)
     {
         return $this->send("WAIT FOR DIGIT $timeout");
     }
@@ -37,12 +35,12 @@ class RichClient extends Client
         return $this->send("VERBOSE \"$string\"");
     }
 
-    public function db_get($fam, $key)
+    public function dbGet($fam, $key)
     {
         return $this->send("DATABASE GET \"$fam\" \"$key\"");
     }
 
-    public function get_data($file, $maxdigits = '', $timeout = '')
+    public function getData($file, $maxdigits = '', $timeout = '')
     {
         return $this->send("GET DATA \"$file\" \"$timeout\" \"$maxdigits\"");
     }
@@ -57,21 +55,19 @@ class RichClient extends Client
         return $this->send("ANSWER");
     }
 
-    public function send_text($text)
+    public function sendText($text)
     {
         return $this->send("SEND TEXT \"$text\"");
     }
 
-    public function receive_char($timeout)
+    public function receiveChar(int $timeout)
     {
-        if (!is_int($timeout)) return false;
         return $this->send("RECEIVE CHAR $timeout");
     }
 
-    public function tdd_mode($switch)
+    public function tddMode($switch)
     {
-        $switch = strtolower($switch);
-        switch ($switch) {
+        switch (strtolower($switch)) {
             case "1":
             case "+":
             case "t":
@@ -93,43 +89,42 @@ class RichClient extends Client
         return $this->send("TDD MODE $switch");
     }
 
-    public function send_image(string $image)
+    public function sendImage(string $image)
     {
         return $this->send("SEND IMAGE \"$image\"");
     }
 
-    public function say_number(int $num, string $digits)
+    public function sayNumber(int $num, string $digits)
     {
         return $this->send("SAY NUMBER $num \"$digits\"");
     }
 
-    public function say_phonetic($str, $digits)
+    public function sayPhonetic($str, $digits)
     {
         return $this->send("SAY PHONETIC \"$str\" \"$digits\"");
     }
 
-    public function say_time($time, $digits)
+    public function sayTime($time, $digits)
     {
         return $this->send("SAY TIME $time \"$digits\"");
     }
 
-    public function set_context($context)
+    public function setContext($context)
     {
         return $this->send("SET CONTEXT \"$context\"");
     }
 
-    public function set_extension($ext)
+    public function setExtension($ext)
     {
         return $this->send("SET EXTENSION \"$ext\"");
     }
 
-    public function set_priority($pri)
+    public function setPriority(int $pri)
     {
-        if (!is_int($pri)) throw new InvalidArgumentException('type invalid');
         return $this->send("SET PRIORITY $pri");
     }
 
-    public function set_autohangup(int $time)
+    public function setAutohangup(int $time)
     {
         return $this->send("SET AUTOHANGUP $time");
     }
@@ -139,33 +134,29 @@ class RichClient extends Client
         return $this->send("EXEC $app \"$args\"");
     }
 
-    public function set_callerid($number)
+    public function setCallerid($number)
     {
         return $this->send("SET CALLERID \"$number\"");
     }
 
-    public function channel_status($channel = null)
+    public function channelStatus($channel = null)
     {
-        if ($channel) $channel = " \"$channel\"";
-        return $this->send("CHANNEL STATUS" . $channel);
+        return $this->send("CHANNEL STATUS" . !is_null($channel) ? " $channel" : '');
     }
 
-    public function set_variable($name, $value)
+    public function setVariable($name, $value)
     {
         return $this->send("SET VARIABLE \"$name\" \"$value\"");
     }
 
-    public function get_variable($name)
+    public function getVariable($name)
     {
         return $this->send("GET VARIABLE \"$name\"");
     }
 
-    public function set_music_on($switch, $class = null)
+    public function setMusicOn($switch, $class = null)
     {
-        if ($class) $class = " \"$class\"";
-
-        $switch = strtolower($switch);
-        switch ($switch) {
+        switch (strtolower($switch)) {
             case true:
             case "1":
             case "+":
@@ -186,7 +177,7 @@ class RichClient extends Client
             default:
                 throw new InvalidArgumentException('type invalid');
         }
-        return $this->send("SET MUSIC ON $switch" . $class);
+        return $this->send("SET MUSIC ON $switch" . !is_null($class) ? " $class" : '');
     }
 
     public function noop(string $string)

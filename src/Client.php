@@ -12,10 +12,7 @@ use TryAGI\Result;
  */
 class Client
 {
-    const CODE_200 = 200;
-    const CODE_510 = 510;
-    const CODE_511 = 511;
-    const CODE_520 = 520;
+    const LINE_SEPARATOR = "\n";
 
     /**
      * @var array
@@ -25,34 +22,41 @@ class Client
     /**
      * @var resource
      */
-    private $stdin = STDIN;
+    private $stdin;
 
     /**
      * @var resource
      */
-    private $stdout = STDOUT;
+    private $stdout;
 
     /**
      * @var int
      */
-    private $timeout = 1000000;
+    private $timeout = 500000;
 
     /**
      * @var int
      */
-    private $chunk = 512;
+    private $chunk = 1;
 
     /**
      * @var LoggerInterface
      */
     private $logger;
 
-    public function __construct(LoggerInterface $logger)
+    /**
+     * @param stream $stdin
+     * @param stream $stdout
+     * @param LoggerInterface $logger
+     */
+    public function __construct($stdin, $stdout, LoggerInterface $logger)
     {
+        $this->stdin = $stdin;
+        $this->stdout = $stdout;
         $this->logger = $logger;
     }
 
-    function __destruct()
+    public function __destruct()
     {
         fclose($this->stdin);
         fclose($this->stdout);
@@ -124,118 +128,144 @@ class Client
 
     public function init()
     {
-        $this->channelVariables = $this->readChannelVariables($this->read());
+        $this->logger->debug(__METHOD__, func_get_args());
+
+        $message = $this->read();
+        $this->logger->debug(__METHOD__ . ' $message', [$message]);
+        if (!strlen($message)) throw new RuntimeException('message empty');
+        $this->channelVariables = $this->readChannelVariables($message);
     }
 
     /**
      * @param string $command
-     * @return \Response
+     * @return Result
      * @throws InvalidArgumentException
      */
     public function send(string $command): Result
     {
-        $this->write($command);
+        $this->logger->debug(__METHOD__, func_get_args());
+
+        if (!$this->write($command)) throw new RuntimeException('Stream write');
         $message = $this->read();
-        return Result::fromArray($this->readResult($message));
+        $this->logger->debug(__METHOD__ . ' $message', [$message]);
+        if (!strlen($message)) throw new RuntimeException('message empty');
+        $output = $this->readResult($message);
+        $this->logger->debug(__METHOD__ . ' $output', [$output]);
+        return Result::fromArray($output);
     }
 
     // tools
 
     private function readChannelVariables(string $message): array
     {
-        $lines = explode("\n", $message);
+        $this->logger->debug(__METHOD__, func_get_args());
 
-        if (!$lines) throw new RuntimeException('lines do not exist');
+        $lines = explode(self::LINE_SEPARATOR, $message);
 
-        $output = [];
+        // filter channel-variable line
+        $channelVariableLines = array_filter($lines, function ($line) {
+            return $this->isChannelVariableLine($line);
+        });
 
-        foreach ($lines as $line) {
-            if (!$this->isChannelVariableLine($line)) continue;
-            $parsed = $this->parseChannelVariableLine($line);
-            $output[$parsed['key']] = $parsed['value'];
-        }
+        $output = array_reduce($channelVariableLines, function ($carry, $line) {
+            $item = $this->parseChannelVariableLine($line);
+            $carry[$item['key']] = $item['value'];
+            return $carry;
+        }, []);
+
+        $this->logger->debug(__METHOD__, $output);
 
         return $output;
     }
 
     private function readResult(string $message): array
     {
-        $lines = explode("\n", $message);
+        $this->logger->debug(__METHOD__, func_get_args());
 
-        if (!$lines) throw new RuntimeException('lines do not exist');
+        $lines = explode(self::LINE_SEPARATOR, $message);
 
-        $lines = array_filter($lines, function ($line) {
+        // filter single and multi lines
+        $singleAndMultiLines = array_filter($lines, function ($line) {
             return $this->isSingleLine($line) || $this->isMultiLine($line);
         });
 
-        $singleLines = array_filter($lines, function ($line) {
-            return $this->isSingleLine($line);
-        });
+        if ($this->isContainManySingleLines($singleAndMultiLines)) throw new RuntimeException('contain many single lines');
 
-        if (count($singleLines) > 1) throw new RuntimeException('detect many single-line');
-
+        // parse single and multi lines
         $parsedLines = array_map(function($line) {
             if ($this->isMultiLine($line)) return $this->parseMultiLine($line);
             if ($this->isSingleLine($line)) return $this->parseSingleLine($line);
-        }, $lines);
+        }, $singleAndMultiLines);
 
-        return $this->collapseLines($parsedLines);
+        // collapse lines
+        $output = array_reduce($parsedLines, function ($carry, $item) {
+            return [
+                'code' => $item['code'],
+                'result' => $item['result'],
+                'data' => isset($carry['data']) ? $carry['data'] . $item['data'] : $item['data'],
+            ];
+        });
+
+        $this->logger->debug(__METHOD__, $output);
+
+        return $output;
     }
 
-    private function write(string $text): int
+    private function write(string $command): bool
     {
-        $output = fwrite($this->stdout, $text);
-        if (false === $output) throw new RuntimeException('Stream write');
-        return $output;
+        $this->logger->debug(__METHOD__, func_get_args());
+
+        return (bool) fwrite($this->stdout, $command . self::LINE_SEPARATOR);
     }
 
     private function read(): string
     {
+        $this->logger->debug(__METHOD__, func_get_args());
+
         $stdin = [$this->stdin];
         $stdout = [];
         $stderr = [];
 
         $output = '';
-        while (is_resource($this->stdin) && !feof($this->stdin)) {
-            $ready = stream_select($stdin, $stdout, $stderr, 0, $this->timeout);
-            if (false === $ready) throw new RuntimeException('Stream error');
-            if (0 === $ready) throw new RuntimeException('Stream timeout');
+        while (is_resource($this->stdin) && !feof($this->stdin) && stream_select($stdin, $stdout, $stderr, 0, $this->timeout)) {
+            $this->logger->debug(__METHOD__ . ' metadata:', [stream_get_meta_data($this->stdin)]);
             $output .= stream_get_contents($this->stdin, $this->chunk);
         }
+
+        $this->logger->debug(__METHOD__, [$output]);
 
         return $output;
     }
 
-    private function isSeparatorLine(string $line): bool
-    {
-        return $line === '';
-    }
-
     private function isChannelVariableLine(string $line): bool
     {
+        $this->logger->debug(__METHOD__, func_get_args());
         $matches = [];
-        if (false === preg_match('/^agi_.+$/', preg_quote($line), $matches)) throw new RuntimeException('Regexp error');
+        if (false === preg_match('/^agi_.+$/ui', $line, $matches)) throw new RuntimeException('Regexp error');
         return (bool) $matches;
     }
 
     private function isSingleLine(string $line): bool
     {
+        $this->logger->debug(__METHOD__, func_get_args());
         $matches = [];
-        if (false === preg_match('/^\d{3} /', preg_quote($line), $matches)) throw new RuntimeException('Regexp error');
+        if (false === preg_match('/^\d{3} /ui', $line, $matches)) throw new RuntimeException('Regexp error');
         return (bool) $matches;
     }
 
     private function isMultiLine(string $line): bool
     {
+        $this->logger->debug(__METHOD__, func_get_args());
         $matches = [];
-        if (false === preg_match('/^\d{3}-/', preg_quote($line), $matches)) throw new RuntimeException('Regexp error');
+        if (false === preg_match('/^\d{3}-/ui', $line, $matches)) throw new RuntimeException('Regexp error');
         return (bool) $matches;
     }
 
     private function parseChannelVariableLine(string $line): array
     {
+        $this->logger->debug(__METHOD__, func_get_args());
         $matches = [];
-        if (false === preg_match('/^(agi_.+): (.*)$/', preg_quote($line), $matches)) throw new RuntimeException('Regexp error');
+        if (false === preg_match('/^(agi_.+): (.*)$/ui', $line, $matches)) throw new RuntimeException('Regexp error');
         return [
             'key' => $matches[1],
             'value' => $matches[2],
@@ -244,8 +274,9 @@ class Client
 
     private function parseMultiLine(string $line): array
     {
+        $this->logger->debug(__METHOD__, func_get_args());
         $matches = [];
-        if (false === preg_match('/^(\d{3})-(.*)$/', preg_quote($line), $matches)) throw new RuntimeException('Regexp error');
+        if (false === preg_match('/^(\d{3})-(.*)$/ui', $line, $matches)) throw new RuntimeException('Regexp error');
         return [
             'code' => $matches[1],
             'result' => '',
@@ -255,8 +286,9 @@ class Client
 
     private function parseSingleLine(string $line): array
     {
+        $this->logger->debug(__METHOD__, func_get_args());
         $matches = [];
-        if (false === preg_match('/^(\d{3}) result=(-?\d+)(?: \(?(.*)\)?)?$/', preg_quote($line), $matches)) throw new RuntimeException('Regexp error');
+        if (false === preg_match('/^(\d{3}) result=(-?\d+)(?: \(?(.*)\)?)?$/ui', $line, $matches)) throw new RuntimeException('Regexp error');
         return [
             'code' => $matches[1],
             'result' => $matches[2],
@@ -264,19 +296,13 @@ class Client
         ];
     }
 
-    private function collapseLines(array $lines): array
+    private function isContainManySingleLines(array $lines): bool
     {
-        return array_reduce($lines, function ($carry, $item) {
-            return [
-                'code' => $item['code'],
-                'result' => $item['result'],
-                'data' => $carry['data'] . $item['data'],
-            ];
-        }, [
-            'code' => '',
-            'result' => '',
-            'data' => '',
-        ]);
+        $singleLines = array_filter($lines, function ($line) {
+            return $this->isSingleLine($line);
+        });
+
+        return count($singleLines) > 1;
     }
 
 }

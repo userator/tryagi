@@ -4,13 +4,11 @@ namespace TryAGI;
 
 class Result
 {
-    const CODE_200 = 200;
-    const CODE_510 = 510;
-    const CODE_511 = 511;
-    const CODE_520 = 520;
+    const CODE_SUCCESS = 200;
+    const CODE_FAILURE = 500;
 
-    /** @var int */
-    protected $code = 0;
+    /** @var string */
+    protected $code = '';
 
     /** @var string */
     protected $result = '';
@@ -19,22 +17,12 @@ class Result
     protected $data = '';
 
     /**
-     * @param string $text
-     * @return Result
-     */
-    static public function fromText(string $text): Result
-    {
-        $output = new static();
-        return $output;
-    }
-
-    /**
-     * @param int $code
+     * @param string $code
      * @param string $result
      * @param string $data
      * @return Result
      */
-    static public function fromArgs(int $code, string $result, string $data = ''): Result
+    static public function fromArgs(string $code, string $result, string $data = ''): Result
     {
         $output = new static();
         $output->setCode($code);
@@ -58,7 +46,7 @@ class Result
 
     // mutators
 
-    public function getCode(): int
+    public function getCode(): string
     {
         return $this->code;
     }
@@ -73,7 +61,7 @@ class Result
         return $this->data;
     }
 
-    public function setCode(int $code)
+    public function setCode(string $code)
     {
         $this->code = $code;
     }
@@ -90,24 +78,14 @@ class Result
 
     // tools
 
-    private function isSeparatorLine(string $text)
+    public function isCodeSuccess()
     {
-        
+        return floor($this->code / 100) * 100 == self::CODE_SUCCESS;
     }
 
-    private function isMultiLine(string $text)
+    public function isCodeFailure()
     {
-        
-    }
-
-    private function isSingleLine(string $text)
-    {
-        
-    }
-
-    private function isChannelVariableLine(string $text)
-    {
-        
+        return floor($this->code / 100) * 100 == self::CODE_FAILURE;
     }
 
 }
