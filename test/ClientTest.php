@@ -135,7 +135,7 @@ class ClientTest extends \PHPUnit\Framework\TestCase
         $this->assertCount(0, $this->object->getChannelVariables());
         $this->writeChannelVariablesMessage($this->stdout);
         $this->object->init();
-        $this->assertCount(22, $this->object->getChannelVariables(), 'after: ' . count($this->object->getChannelVariables()));
+        $this->assertCount(22, $this->object->getChannelVariables());
     }
 
     /**
@@ -146,8 +146,8 @@ class ClientTest extends \PHPUnit\Framework\TestCase
         $this->writeSuccessSingleResultMessageWithData($this->stdout);
         $result = $this->object->send('VERBOSE "test verbose message"');
         $this->assertInstanceOf(Result::class, $result);
-        $this->assertEquals(200, $result->getCode());
-        $this->assertEquals(1, $result->getResult());
+        $this->assertEquals('200', $result->getCode());
+        $this->assertEquals('1', $result->getResult());
         $this->assertEquals('foo=bar', $result->getData());
     }
 

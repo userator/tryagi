@@ -1,6 +1,6 @@
 {
     "name": "userator/tryagi",
-    "description": "asterisk gateway interface library",
+    "description": "asterisk gateway interface (AGI) library",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -10,8 +10,7 @@
     ],
     "require": {
         "php": "~7.3.0",
-        "psr/log": "~1.1.0",
-        "monolog/monolog": "~1.24.0"
+        "psr/log": "~1.1.0"
     },
     "require-dev": {
         "phpunit/phpunit": "~7.5.0"
