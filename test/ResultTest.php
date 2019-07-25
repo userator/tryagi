@@ -67,7 +67,7 @@ class ResultTest extends \PHPUnit\Framework\TestCase
     /**
      * @covers TryAGI\Result::isCodeFailure
      */
-    public function testIsCodeFailure()
+    public function testFailureIsCodeFailure()
     {
         $this->object->setCode(Result::CODE_SUCCESS);
         $this->assertFalse($this->object->isCodeFailure());
